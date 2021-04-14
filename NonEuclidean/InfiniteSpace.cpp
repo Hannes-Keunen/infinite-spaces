@@ -18,6 +18,8 @@ static auto CreateCorridorMesh(
     const std::vector<Vector3>& points,
     std::shared_ptr<Mesh>& part1,
     std::shared_ptr<Mesh>& part2,
+    Side entranceSide,
+    Side exitSide,
     Side& connectionSide)
 {
     std::vector<float> verts;
@@ -47,7 +49,7 @@ static auto CreateCorridorMesh(
         Back = 0x08,
     };
 
-    auto segment = [&](const Vector3& center, const Vector3& scale, uint8_t exclude) {
+    auto segment = [&](const Vector3& center, const Vector3& scale, uint8_t exclude, uint8_t skipColliders = 0) {
         Vector3 v_blb(center.x - scale.x / 2, center.y, center.z - scale.z / 2);           // bottom left back
         Vector3 v_brb(center.x + scale.x / 2, center.y, center.z - scale.z / 2);           // bottom right back
         Vector3 v_blf(center.x - scale.x / 2, center.y, center.z + scale.z / 2);           // bottom left front
@@ -73,11 +75,11 @@ static auto CreateCorridorMesh(
         vertex(v_tlb, vt, Vector3(0, 1, 0));
         vertex(v_trb, vt, Vector3(0, 1, 0));
         vertex(v_tlf, vt, Vector3(0, 1, 0));
-        // colliders.emplace_back(v_tlb, v_trb, v_tlf);
+        colliders.emplace_back(v_tlb, v_trb, v_tlf);
         vertex(v_tlf, vt, Vector3(0, 1, 0));
         vertex(v_trb, vt, Vector3(0, 1, 0));
         vertex(v_trf, vt, Vector3(0, 1, 0));
-        // colliders.emplace_back(v_tlf, v_trb, v_trf);
+        colliders.emplace_back(v_tlf, v_trb, v_trf);
 
         if (!(exclude & Left))
         {
@@ -85,11 +87,15 @@ static auto CreateCorridorMesh(
             vertex(v_blf, vt, Vector3(1, 0, 0));
             vertex(v_tlb, vt, Vector3(1, 0, 0));
             vertex(v_tlf, vt, Vector3(1, 0, 0));
-            // colliders.emplace_back(v_blf, v_tlb, v_tlf);
             vertex(v_blf, vt, Vector3(1, 0, 0));
             vertex(v_blb, vt, Vector3(1, 0, 0));
             vertex(v_tlb, vt, Vector3(1, 0, 0));
-            // colliders.emplace_back(v_blf, v_blb, v_tlb);
+
+            if (!(skipColliders & Left))
+            {
+                colliders.emplace_back(v_blf, v_tlb, v_tlf);
+                colliders.emplace_back(v_blf, v_blb, v_tlb);
+            }
         }
 
         if (!(exclude & Right))
@@ -98,11 +104,15 @@ static auto CreateCorridorMesh(
             vertex(v_brf, vt, Vector3(1, 0, 0));
             vertex(v_trf, vt, Vector3(1, 0, 0));
             vertex(v_trb, vt, Vector3(1, 0, 0));
-            // colliders.emplace_back(v_brf, v_trf, v_trb);
             vertex(v_brf, vt, Vector3(1, 0, 0));
             vertex(v_trb, vt, Vector3(1, 0, 0));
             vertex(v_brb, vt, Vector3(1, 0, 0));
-            // colliders.emplace_back(v_brf, v_trb, v_brb);
+
+            if (!(skipColliders & Right))
+            {
+                colliders.emplace_back(v_brf, v_trf, v_trb);
+                colliders.emplace_back(v_brf, v_trb, v_brb);
+            }
         }
 
         if (!(exclude & Front))
@@ -111,11 +121,15 @@ static auto CreateCorridorMesh(
             vertex(v_blf, vt, Vector3(0, 0, 1));
             vertex(v_tlf, vt, Vector3(0, 0, 1));
             vertex(v_trf, vt, Vector3(0, 0, 1));
-            // colliders.emplace_back(v_blf, v_trf, v_tlf);
             vertex(v_blf, vt, Vector3(0, 0, 1));
             vertex(v_trf, vt, Vector3(0, 0, 1));
             vertex(v_brf, vt, Vector3(0, 0, 1));
-            // colliders.emplace_back(v_blf, v_trf, v_brf);
+
+            if (!(skipColliders & Front))
+            {
+                colliders.emplace_back(v_blf, v_trf, v_tlf);
+                colliders.emplace_back(v_blf, v_trf, v_brf);
+            }
         }
 
         if (!(exclude & Back))
@@ -124,11 +138,15 @@ static auto CreateCorridorMesh(
             vertex(v_blb, vt, Vector3(0, 0, 1));
             vertex(v_trb, vt, Vector3(0, 0, 1));
             vertex(v_tlb, vt, Vector3(0, 0, 1));
-            // colliders.emplace_back(v_blb, v_trb, v_tlb);
             vertex(v_blb, vt, Vector3(0, 0, 1));
             vertex(v_brb, vt, Vector3(0, 0, 1));
             vertex(v_trb, vt, Vector3(0, 0, 1));
-            // colliders.emplace_back(v_blb, v_tlb, v_brb);
+
+            if (!(skipColliders & Back))
+            {
+                colliders.emplace_back(v_blb, v_trb, v_tlb);
+                colliders.emplace_back(v_blb, v_tlb, v_brb);
+            }
         }
     };
 
@@ -192,7 +210,26 @@ static auto CreateCorridorMesh(
         }
 
         // corner segment
-        segment(points[i], Vector3(CORRIDOR_WIDTH, CORRIDOR_HEIGHT, CORRIDOR_WIDTH), in | out);
+        auto sideToFaces = [](Side side) {
+            switch (side)
+            {
+                case Side::North: return Front;
+                case Side::East: return Left;
+                case Side::South: return Back;
+                case Side::West: return Right;
+            }
+        };
+
+        Faces skipColliders;
+        if (i == 0)
+        {
+            skipColliders = sideToFaces(entranceSide);
+        }
+        if (i == points.size() - 1)
+        {
+            skipColliders = sideToFaces(exitSide);
+        }
+        segment(points[i], Vector3(CORRIDOR_WIDTH, CORRIDOR_HEIGHT, CORRIDOR_WIDTH), in | out, skipColliders);
 
         if (i == points.size() / 2)
         {
@@ -322,7 +359,7 @@ Corridor::Corridor(
     points = {S, a1, I, a2, E};
     part1 = std::make_shared<Object>();
     part2 = std::make_shared<Object>();
-    CreateCorridorMesh(points, part1->mesh, part2->mesh, connectionSide);
+    CreateCorridorMesh(points, part1->mesh, part2->mesh, entranceSide, exitSide, connectionSide);
     part1->texture = AquireTexture("three_room.bmp");
     part2->texture = AquireTexture("three_room.bmp");
     part1->shader = AquireShader("texture");
@@ -472,7 +509,6 @@ void Room::PlacePortal(std::shared_ptr<Portal>& portal, Side side)
             portal->pos = pos + Vector3(-size / 2.0f + 0.001f, 0, 0);
             portal->euler.y = GH_PI / 2.0f;
             break;
-        default: printf("Why am I here? side = %d\n", (int) side);
     }
     portal->pos.y = 1.0f;
 }
