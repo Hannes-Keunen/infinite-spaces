@@ -1,0 +1,2 @@
+0:19(2): error: `objId_out' undeclared
+0:19(2): error: value of type int cannot be assigned to variable of type error
