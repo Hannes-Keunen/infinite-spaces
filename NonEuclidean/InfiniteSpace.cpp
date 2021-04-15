@@ -217,6 +217,7 @@ static auto CreateCorridorMesh(
                 case Side::East: return Left;
                 case Side::South: return Back;
                 case Side::West: return Right;
+                default: return (Faces) 0;
             }
         };
 
@@ -459,8 +460,9 @@ void Corridor::ConnectMiddlePortals()
     Portal::Connect(p1, p2);
 }
 
-InfiniteSpace::InfiniteSpace(int physicalSize, RemovalStrategy removalStrategy)
+InfiniteSpace::InfiniteSpace(int physicalSize, int roomSize, RemovalStrategy removalStrategy)
     : physicalSize(physicalSize)
+    , roomSize(roomSize)
     , removalStrategy(removalStrategy)
 {
     roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.png"), .hasTarget = false});
@@ -824,7 +826,7 @@ void InfiniteSpace::GenerateNode(int type, int nodeIndex, int entranceSide, int 
         return;
     }
 
-    node.size = 5; // TODO: random size
+    node.size = roomSize; // TODO: random size
 
     std::vector<int> sides = {0, 1, 2, 3};
     node.connections = {-1, -1, -1, -1};

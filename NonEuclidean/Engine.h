@@ -15,6 +15,7 @@
 #include "Timer.h"
 
 #include <GLFW/glfw3.h>
+#include <openvr/openvr.h>
 
 #include <memory>
 #include <vector>
@@ -24,7 +25,16 @@ class Engine
     friend class Input;
 
 public:
-    Engine();
+    struct Args
+    {
+        bool enableVr = false;
+        bool showMinimap = false;
+        int physicalSize = 16;
+        int roomSize = 5;
+        RemovalStrategy removalStrategy = RemovalStrategy::IMMEDIATE;
+    };
+
+    Engine(Args args);
     ~Engine();
 
     int Run();
@@ -39,17 +49,24 @@ public:
 
 private:
     void CreateGLWindow();
+    void InitVR();
     void InitGLObjects();
     void DestroyGLObjects();
     void ToggleFullscreen();
 
-    GLFWwindow* window;
+private:
+    Args args;
 
-    int iWidth;        // window width
-    int iHeight;       // window height
-    bool isFullscreen; // fullscreen state
+    GLFWwindow* window;
+    vr::IVRSystem* HMD;
+
+    int iWidth;                   // window width
+    int iHeight;                  // window height
+    uint32_t hmdWidth, hmdHeight; // HMD render target size
+    bool isFullscreen;            // fullscreen state
     std::shared_ptr<ScreenBuffer> screenBuffer;
     std::shared_ptr<Minimap> minimap;
+    std::shared_ptr<FrameBuffer> leftView, rightView;
 
     Camera main_cam;
     Input input;

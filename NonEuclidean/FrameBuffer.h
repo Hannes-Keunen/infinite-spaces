@@ -16,6 +16,7 @@ public:
     void Render(const Camera& cam, GLuint curFBO, const Portal* skipPortal);
     void Use();
     void Bind();
+    auto TexId() const { return texId; }
 
 private:
     GLuint texId;

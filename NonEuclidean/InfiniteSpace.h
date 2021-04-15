@@ -143,7 +143,7 @@ enum class RemovalStrategy
 class InfiniteSpace : public Scene
 {
 public:
-    InfiniteSpace(int physicalSize, RemovalStrategy removalStrategy = RemovalStrategy::IMMEDIATE);
+    InfiniteSpace(int physicalSize, int roomSize, RemovalStrategy removalStrategy = RemovalStrategy::IMMEDIATE);
     virtual void Load(PObjectVec& objs, PPortalVec& portals, Player& player) override;
 
     void OnDoorClicked(std::shared_ptr<Door>& door, PObjectVec& objs, PPortalVec& portals, Player& player);
@@ -175,6 +175,7 @@ private:
 
 private:
     int physicalSize;
+    int roomSize;
     int nextNode = 1;
     RemovalStrategy removalStrategy;
     std::vector<RoomType> roomTypes;

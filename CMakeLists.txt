@@ -11,5 +11,5 @@ find_package(glfw3 REQUIRED)
 target_link_libraries(NonEuclidean glfw ${GLFW_LIBRARIES} glad)
 include_directories(NonEuclidean ${GLFW_INCLUDE_DIRS})
 
-target_link_libraries(NonEuclidean nlohmann_json::nlohmann_json stb_image)
+target_link_libraries(NonEuclidean nlohmann_json::nlohmann_json stb_image OpenVR)
 target_link_options(NonEuclidean PUBLIC -rdynamic)
