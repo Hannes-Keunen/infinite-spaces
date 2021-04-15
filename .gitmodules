@@ -1,3 +1,6 @@
 [submodule "dependencies/json"]
 	path = dependencies/json
 	url = https://github.com/nlohmann/json.git
+[submodule "dependencies/openvr"]
+	path = dependencies/openvr
+	url = https://github.com/ValveSoftware/openvr.git
