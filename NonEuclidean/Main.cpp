@@ -1,7 +1,5 @@
-#include "Debug.h"
 #include "Engine.h"
 
-#include <signal.h>
 #include <string.h>
 
 int main(int argc, char* argv[])
@@ -37,7 +35,7 @@ int main(int argc, char* argv[])
             }
             else
             {
-                printf("Warning: Invalid removal strategy: %s. Must be one of \"immediate\", \"keep_one\".\n");
+                printf("Warning: Invalid removal strategy: %s. Must be one of \"immediate\", \"keep_one\".\n", argv[i]);
             }
         }
         else
@@ -45,9 +43,6 @@ int main(int argc, char* argv[])
             printf("Warning: Invalid argument: %s\n", argv[i]);
         }
     }
-
-    // signal(SIGSEGV, SignalHandler);
-    // signal(SIGABRT, SignalHandler);
 
     // Run the main engine
     Engine engine(args);

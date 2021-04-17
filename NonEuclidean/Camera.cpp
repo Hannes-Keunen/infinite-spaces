@@ -15,12 +15,12 @@ void Camera::SetSize(int w, int h, float n, float f)
 {
     width = w;
     height = h;
-    near = n;
-    far = f;
+    fNear = n;
+    fFar = f;
 
     const float e = 1.0f / std::tan(GH_FOV * GH_PI / 360.0f);
     const float a = float(height) / float(width);
-    const float d = near - far;
+    const float d = fNear - fFar;
 
     projection.m[0] = e * a;
     projection.m[1] = 0.0f;
@@ -32,8 +32,8 @@ void Camera::SetSize(int w, int h, float n, float f)
     projection.m[7] = 0.0f;
     projection.m[8] = 0.0f;
     projection.m[9] = 0.0f;
-    projection.m[10] = (near + far) / d;
-    projection.m[11] = (2 * near * far) / d;
+    projection.m[10] = (fNear + fFar) / d;
+    projection.m[11] = (2 * fNear * fFar) / d;
     projection.m[12] = 0.0f;
     projection.m[13] = 0.0f;
     projection.m[14] = -1.0f;
@@ -47,7 +47,7 @@ void Camera::SetPositionOrientation(const Vector3& pos, float rotX, float rotY)
 
 Matrix4 Camera::InverseProjection() const
 {
-    Matrix4     invProjection = Matrix4::Zero();
+    Matrix4 invProjection = Matrix4::Zero();
     const float a = projection.m[0];
     const float b = projection.m[5];
     const float c = projection.m[10];

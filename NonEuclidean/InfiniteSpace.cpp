@@ -1,6 +1,5 @@
 #include "InfiniteSpace.h"
 
-#include "Debug.h"
 #include "Ground.h"
 
 #include <algorithm>

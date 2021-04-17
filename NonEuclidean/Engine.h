@@ -15,7 +15,7 @@
 #include "Timer.h"
 
 #include <GLFW/glfw3.h>
-#include <openvr/openvr.h>
+#include <openvr.h>
 
 #include <memory>
 #include <vector>

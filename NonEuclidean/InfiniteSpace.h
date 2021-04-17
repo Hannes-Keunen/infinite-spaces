@@ -2,6 +2,8 @@
 
 #include "Scene.h"
 
+#include <array>
+
 enum class Side
 {
     North,

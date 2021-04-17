@@ -100,13 +100,13 @@ int Engine::Run()
         }
         cur_time = (cur_time < new_time ? new_time : cur_time);
 
-        const float near = GH_CLAMP(NearestPortalDist() * 0.5f, GH_NEAR_MIN, GH_NEAR_MAX);
+        const float n = GH_CLAMP(NearestPortalDist() * 0.5f, GH_NEAR_MIN, GH_NEAR_MAX);
 
         // 1. Render the screen view and object IDs
         {
             // Setup camera for rendering
             main_cam.worldView = player->WorldToCam();
-            main_cam.SetSize(iWidth, iHeight, near, GH_FAR);
+            main_cam.SetSize(iWidth, iHeight, n, GH_FAR);
             main_cam.UseViewport();
 
             GH_REC_LEVEL = GH_MAX_RECURSION;
@@ -172,8 +172,8 @@ int Engine::Run()
                 auto viewRight = transformRight.Inverse() * head.Inverse();
 
                 // eye projection
-                auto projectionLeft = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Left, near, GH_FAR));
-                auto projectionRight = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Right, near, GH_FAR));
+                auto projectionLeft = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Left, n, GH_FAR));
+                auto projectionRight = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Right, n, GH_FAR));
 
                 auto RenderView = [](const std::shared_ptr<FrameBuffer>& view, const Matrix4& eye,
                                      const Matrix4& proj) {
