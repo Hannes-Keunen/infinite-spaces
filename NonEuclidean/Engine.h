@@ -53,6 +53,9 @@ private:
     void InitGLObjects();
     void DestroyGLObjects();
     void ToggleFullscreen();
+    Matrix4 GetHeadMatrix();
+    Matrix4 GetEyeMatrix(vr::Hmd_Eye eye);
+    Matrix4 GetProjectionMatrix(vr::Hmd_Eye eye, float fNear, float fFar);
 
 private:
     Args args;
@@ -67,6 +70,9 @@ private:
     std::shared_ptr<ScreenBuffer> screenBuffer;
     std::shared_ptr<Minimap> minimap;
     std::shared_ptr<FrameBuffer> leftView, rightView;
+
+    Matrix4 eyeMatrixLeft, eyeMatrixRight;
+    Matrix4 projectionMatrixLeft, projectionMatrixRight;
 
     Camera main_cam;
     Input input;

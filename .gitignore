@@ -10,3 +10,5 @@ glew-2.1.0
 build
 .vscode
 exported/*
+CMakeSettings.json
+*.log

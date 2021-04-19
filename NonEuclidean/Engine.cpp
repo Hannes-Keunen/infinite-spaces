@@ -103,6 +103,7 @@ int Engine::Run()
         const float n = GH_CLAMP(NearestPortalDist() * 0.5f, GH_NEAR_MIN, GH_NEAR_MAX);
 
         // 1. Render the screen view and object IDs
+        if (!args.enableVr)
         {
             // Setup camera for rendering
             main_cam.worldView = player->WorldToCam();
@@ -131,69 +132,56 @@ int Engine::Run()
                 minimap->Present();
             }
         }
-
-        // Render VR view
-        if (args.enableVr)
+        else
         {
-            // 2. obtain modelview matrices from the HMD
-            auto Hmd34ToMatrix4 = [](const vr::HmdMatrix34_t& mat) {
-                Matrix4 result;
-                // clang-format off
-                result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = 0;
-                result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = 0;
-                result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = 0;
-                result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = 1;
-                // clang-format on
-                return result;
-            };
+            auto headMatrix = GetHeadMatrix();
 
-            auto Hmd44ToMatrix4 = [](const vr::HmdMatrix44_t& mat) {
-                Matrix4 result;
-                // clang-format off
-                result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = mat.m[3][0];
-                result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = mat.m[3][1];
-                result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = mat.m[3][2];
-                result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = mat.m[3][3];
-                // clang-format on
-                return result;
-            };
+            // Setup camera for rendering
+            main_cam.worldView = headMatrix;
+            main_cam.SetSize(iWidth, iHeight, n, GH_FAR);
+            main_cam.UseViewport();
 
-            vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
-            vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
-            if (poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid)
+            GH_REC_LEVEL = GH_MAX_RECURSION;
+            screenBuffer->Bind();
+            Render(main_cam, screenBuffer->Fbo(), nullptr);
+
+            if (args.showMinimap)
             {
-                // head matrix
-                auto head = Hmd34ToMatrix4(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
-
-                // eye-to-head
-                auto transformLeft = Hmd34ToMatrix4(HMD->GetEyeToHeadTransform(vr::Eye_Left));
-                auto transformRight = Hmd34ToMatrix4(HMD->GetEyeToHeadTransform(vr::Eye_Right));
-                auto viewLeft = transformLeft.Inverse() * head.Inverse();
-                auto viewRight = transformRight.Inverse() * head.Inverse();
-
-                // eye projection
-                auto projectionLeft = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Left, n, GH_FAR));
-                auto projectionRight = Hmd44ToMatrix4(HMD->GetProjectionMatrix(vr::Eye_Right, n, GH_FAR));
-
-                auto RenderView = [](const std::shared_ptr<FrameBuffer>& view, const Matrix4& eye,
-                                     const Matrix4& proj) {
-                    Camera cam;
-                    cam.worldView = eye;
-                    cam.projection = proj;
-
-                    view->Render(cam, 0, nullptr);
-                };
-
-                // 3. render views
-                RenderView(leftView, viewLeft, projectionLeft);
-                RenderView(rightView, viewRight, projectionRight);
-
-                // 4. present to HMD
-                // vr::Texture_t leftTexture = {(void*) leftView->TexId(), vr::TextureType_OpenGL,
-                // vr::ColorSpace_Gamma}; vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture); vr::Texture_t
-                // rightTexture = {(void*) rightView->TexId(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
-                // vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
+                minimap->Render(*player, *curScene);
             }
+
+            // Present
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glViewport(0, 0, iWidth, iHeight);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glDisable(GL_CULL_FACE);
+            glDisable(GL_DEPTH_TEST);
+            screenBuffer->Present();
+
+            if (args.showMinimap)
+            {
+                minimap->Present();
+            }
+
+            auto RenderView = [&](const std::shared_ptr<FrameBuffer>& view, Matrix4 viewMatrix, Matrix4 eyeMatrix,
+                                  Matrix4 projectionMatrix) {
+                Camera cam;
+                cam.worldView = eyeMatrix * viewMatrix;
+                cam.SetSize(hmdWidth, hmdHeight, n, GH_FAR);
+                cam.projection = projectionMatrix;
+
+                view->Render(cam, 0, nullptr);
+            };
+
+            // render views
+            RenderView(leftView, headMatrix, eyeMatrixLeft, projectionMatrixLeft);
+            RenderView(rightView, headMatrix, eyeMatrixRight, projectionMatrixRight);
+
+            // present to HMD
+            vr::Texture_t leftTexture = {(void*) leftView->TexId(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
+            vr::VRCompositor()->Submit(vr::Eye_Left, &leftTexture);
+            vr::Texture_t rightTexture = {(void*) rightView->TexId(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
+            vr::VRCompositor()->Submit(vr::Eye_Right, &rightTexture);
         }
 
         glfwSwapBuffers(window);
@@ -433,7 +421,7 @@ void Engine::CreateGLWindow()
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-    glfwWindowHint(GLFW_MAXIMIZED, GH_START_FULLSCREEN ? GLFW_TRUE : GLFW_FALSE);
+    glfwWindowHint(GLFW_MAXIMIZED, !args.enableVr && GH_START_FULLSCREEN ? GLFW_TRUE : GLFW_FALSE);
 
     window = glfwCreateWindow(iWidth, iHeight, GH_TITLE, nullptr, nullptr);
     if (window == nullptr)
@@ -478,6 +466,11 @@ void Engine::InitVR()
 
     HMD->GetRecommendedRenderTargetSize(&hmdWidth, &hmdHeight);
     printf("HMD dimensions: %dx%d\n", hmdWidth, hmdHeight);
+
+    eyeMatrixLeft = GetEyeMatrix(vr::Eye_Left);
+    eyeMatrixRight = GetEyeMatrix(vr::Eye_Right);
+    projectionMatrixLeft = GetProjectionMatrix(vr::Eye_Left, GH_NEAR_MAX, GH_FAR);
+    projectionMatrixRight = GetProjectionMatrix(vr::Eye_Right, GH_NEAR_MAX, GH_FAR);
 }
 
 void Engine::InitGLObjects()
@@ -529,4 +522,44 @@ void Engine::ToggleFullscreen()
     {
         // TODO
     }
+}
+
+static Matrix4 Hmd34ToMatrix4(const vr::HmdMatrix34_t& mat)
+{
+    Matrix4 result;
+    // clang-format off
+    result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = 0;
+    result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = 0;
+    result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = 0;
+    result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = 1;
+    // clang-format on
+    return result;
+};
+
+Matrix4 Engine::GetHeadMatrix()
+{
+    vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
+    vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
+    assert(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid);
+    return Hmd34ToMatrix4(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking).Inverse();
+}
+
+Matrix4 Engine::GetEyeMatrix(vr::Hmd_Eye eye)
+{
+    return Hmd34ToMatrix4(HMD->GetEyeToHeadTransform(eye)).Inverse();
+}
+
+Matrix4 Engine::GetProjectionMatrix(vr::Hmd_Eye eye, float fNear, float fFar)
+{
+    return [](const vr::HmdMatrix44_t& mat) {
+        Matrix4 result;
+        // clang-format off
+        result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = mat.m[3][0];
+        result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = mat.m[3][1];
+        result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = mat.m[3][2];
+        result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = mat.m[3][3];
+        // clang-format on
+        return result;
+    }(HMD->GetProjectionMatrix(vr::Eye_Left, fNear, fFar))
+               .Transposed();
 }

@@ -220,7 +220,7 @@ static auto CreateCorridorMesh(
             }
         };
 
-        Faces skipColliders;
+        Faces skipColliders = (Faces) 0;
         if (i == 0)
         {
             skipColliders = sideToFaces(entranceSide);
