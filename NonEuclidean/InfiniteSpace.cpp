@@ -464,9 +464,9 @@ InfiniteSpace::InfiniteSpace(int physicalSize, int roomSize, RemovalStrategy rem
     , roomSize(roomSize)
     , removalStrategy(removalStrategy)
 {
-    roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.png"), .hasTarget = false});
-    roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.png"), .hasTarget = true});
-    roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.png"), .hasTarget = false});
+    roomTypes.push_back({.texture = AquireTexture("stonetiles.bmp"), .hasTarget = false});
+    roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.bmp"), .hasTarget = true});
+    roomTypes.push_back({.texture = AquireTexture("ParchmentWallpaper.bmp"), .hasTarget = false});
 }
 
 void Room::PlaceDoor(std::shared_ptr<Door>& door, Side side)
@@ -734,6 +734,7 @@ auto InfiniteSpace::PlaceRoom(PObjectVec& objs, int nodeIndex, int entranceSide)
 
     // create room object
     auto room = std::make_shared<Room>(nodes[nodeIndex].size);
+    room->texture = roomTypes[nodes[nodeIndex].roomType].texture;
     room->pos.z = nodeIndex * physicalSize;
     objs.push_back(room);
     nodes[nodeIndex].room = room;
@@ -826,6 +827,7 @@ void InfiniteSpace::GenerateNode(int type, int nodeIndex, int entranceSide, int 
     }
 
     node.size = roomSize; // TODO: random size
+    node.roomType = type;
 
     std::vector<int> sides = {0, 1, 2, 3};
     node.connections = {-1, -1, -1, -1};

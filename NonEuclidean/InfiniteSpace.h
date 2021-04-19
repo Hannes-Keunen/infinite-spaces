@@ -67,6 +67,12 @@ public:
     }
 };
 
+struct RoomType
+{
+    std::shared_ptr<Texture> texture;
+    bool hasTarget;
+};
+
 class Room : public Object
 {
 public:
@@ -75,7 +81,6 @@ public:
     {
         mesh = AquireMesh("box.obj");
         shader = AquireShader("texture");
-        texture = AquireTexture("ParchmentWallpaper.png");
         scale = Vector3(size, 1, size);
     }
 
@@ -118,12 +123,6 @@ struct Corridor
     int exitRoomIndex;
     Side entranceSide;
     Side exitSide;
-};
-
-struct RoomType
-{
-    std::shared_ptr<Texture> texture;
-    bool hasTarget;
 };
 
 struct Node
