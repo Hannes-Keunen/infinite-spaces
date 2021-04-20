@@ -89,6 +89,16 @@ int Engine::Run()
             LoadScene(6);
         }
 
+        vr::VREvent_t event;
+        if (HMD->PollNextEvent(&event, sizeof(event)))
+        {
+            if (event.eventType == vr::VREvent_ButtonPress)
+            {
+                // just any button will do :))
+                PickMouse();
+            }
+        }
+
         // Used fixed time steps for updates
         const double new_time = timer.GetSeconds();
         for (int i = 0; cur_time < new_time && i < GH_MAX_STEPS; ++i)
