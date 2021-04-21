@@ -153,6 +153,12 @@ public:
         const std::shared_ptr<Player>& player, const Vector3& previousPosition, PObjectVec& objs, PPortalVec& portals);
 
     Vector3 GetPhysicalPos(const Vector3& pos) const;
+
+    /**
+     * Returns an offset that must be added to the user's physical location to
+     * obtain their virtual location.
+     */
+    Vector3 GetPlayerOffset(const Vector3& playerPos) const;
     int GetPhysicalSize() const { return physicalSize; };
     void CreateFloorplanVertices(const Player& player, std::vector<float>& vertices) const;
 

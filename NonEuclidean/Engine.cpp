@@ -89,13 +89,16 @@ int Engine::Run()
             LoadScene(6);
         }
 
-        vr::VREvent_t event;
-        if (HMD->PollNextEvent(&event, sizeof(event)))
+        if (args.enableVr)
         {
-            if (event.eventType == vr::VREvent_ButtonPress)
+            vr::VREvent_t event;
+            if (HMD->PollNextEvent(&event, sizeof(event)))
             {
-                // just any button will do :))
-                PickMouse();
+                if (event.eventType == vr::VREvent_ButtonPress)
+                {
+                    // just any button will do :))
+                    PickMouse();
+                }
             }
         }
 
@@ -104,6 +107,10 @@ int Engine::Run()
         for (int i = 0; cur_time < new_time && i < GH_MAX_STEPS; ++i)
         {
             Update();
+            if (!args.enableVr)
+            {
+                TryPortals();
+            }
             cur_time += GH_DT;
             GH_FRAME += 1;
             input.EndFrame();
@@ -112,7 +119,7 @@ int Engine::Run()
 
         const float n = GH_CLAMP(NearestPortalDist() * 0.5f, GH_NEAR_MIN, GH_NEAR_MAX);
 
-        // 1. Render the screen view and object IDs
+        // render the screen view and object IDs
         if (!args.enableVr)
         {
             // Setup camera for rendering
@@ -145,32 +152,37 @@ int Engine::Run()
         else
         {
             auto headMatrix = GetHeadMatrix();
+            auto viewMatrix = headMatrix.Inverse();
 
-            // Setup camera for rendering
-            main_cam.worldView = headMatrix;
-            main_cam.SetSize(iWidth, iHeight, n, GH_FAR);
-            main_cam.UseViewport();
+            // process player motion
+            ProcessPlayerMotion(headMatrix);
 
-            GH_REC_LEVEL = GH_MAX_RECURSION;
-            screenBuffer->Bind();
-            Render(main_cam, screenBuffer->Fbo(), nullptr);
-
-            if (args.showMinimap)
+            // render object ids for picking and companion view
             {
-                minimap->Render(*player, *curScene);
-            }
+                main_cam.worldView = viewMatrix;
+                main_cam.SetSize(iWidth, iHeight, n, GH_FAR);
+                main_cam.UseViewport();
+                GH_REC_LEVEL = GH_MAX_RECURSION;
+                screenBuffer->Bind();
+                Render(main_cam, screenBuffer->Fbo(), nullptr);
 
-            // Present
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-            glViewport(0, 0, iWidth, iHeight);
-            glClear(GL_COLOR_BUFFER_BIT);
-            glDisable(GL_CULL_FACE);
-            glDisable(GL_DEPTH_TEST);
-            screenBuffer->Present();
+                if (args.showMinimap)
+                {
+                    minimap->Render(*player, *curScene);
+                }
 
-            if (args.showMinimap)
-            {
-                minimap->Present();
+                // Present to companion window
+                glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                glViewport(0, 0, iWidth, iHeight);
+                glClear(GL_COLOR_BUFFER_BIT);
+                glDisable(GL_CULL_FACE);
+                glDisable(GL_DEPTH_TEST);
+                screenBuffer->Present();
+
+                if (args.showMinimap)
+                {
+                    minimap->Present();
+                }
             }
 
             auto RenderView = [&](const std::shared_ptr<FrameBuffer>& view, Matrix4 viewMatrix, Matrix4 eyeMatrix,
@@ -184,8 +196,8 @@ int Engine::Run()
             };
 
             // render views
-            RenderView(leftView, headMatrix, eyeMatrixLeft, projectionMatrixLeft);
-            RenderView(rightView, headMatrix, eyeMatrixRight, projectionMatrixRight);
+            RenderView(leftView, viewMatrix, eyeMatrixLeft, projectionMatrixLeft);
+            RenderView(rightView, viewMatrix, eyeMatrixRight, projectionMatrixRight);
 
             // present to HMD
             vr::Texture_t leftTexture = {(void*) leftView->TexId(), vr::TextureType_OpenGL, vr::ColorSpace_Gamma};
@@ -216,7 +228,12 @@ void Engine::LoadScene(int ix)
     curScene = vScenes[ix];
     curScene->Load(vObjects, vPortals, *player);
     // player->SetPosition(Vector3(0.0f, GH_PLAYER_HEIGHT, 0.0f));
-    vObjects.push_back(player);
+    if (!args.enableVr)
+    {
+        // Remove player from the objects vector to make sure its update and
+        // collision methods are not called
+        vObjects.push_back(player);
+    }
 }
 
 void Engine::Update()
@@ -228,21 +245,22 @@ void Engine::Update()
         vObjects[i]->Update();
     }
 
-    // Portals
-    for (size_t i = 0; i < vObjects.size(); ++i)
-    {
-        Physical* physical = vObjects[i]->AsPhysical();
-        if (physical)
-        {
-            for (size_t j = 0; j < vPortals.size(); ++j)
-            {
-                if (physical->TryPortal(*vPortals[j]))
-                {
-                    break;
-                }
-            }
-        }
-    }
+    // Portals -> moved to its own method because player motion works
+    //            differently in VR
+    // for (size_t i = 0; i < vObjects.size(); ++i)
+    // {
+    //     Physical* physical = player->AsPhysical();
+    //     if (physical)
+    //     {
+    //         for (size_t j = 0; j < vPortals.size(); ++j)
+    //         {
+    //             if (physical->TryPortal(*vPortals[j]))
+    //             {
+    //                 break;
+    //             }
+    //         }
+    //     }
+    // }
 
     // Collisions
     // For each physics object
@@ -516,8 +534,11 @@ float Engine::NearestPortalDist() const
     return dist;
 }
 
-void Engine::OnPlayerEnterRoom(const Vector3& previousPosition)
+void Engine::OnPlayerEnterRoom(const Vector3& previousPosition, const Vector3& newPosition)
 {
+    // float x_off = round(player->pos.x / curScene->GetPhysicalSize()) * curScene->GetPhysicalSize();
+    // float z_off = round(player->pos.z / curScene->GetPhysicalSize()) * curScene->GetPhysicalSize();
+    // printf("x: %f z: %f\n", x_off, z_off);
     curScene->OnPlayerEnterRoom(player, previousPosition, vObjects, vPortals);
 }
 
@@ -538,10 +559,10 @@ static Matrix4 Hmd34ToMatrix4(const vr::HmdMatrix34_t& mat)
 {
     Matrix4 result;
     // clang-format off
-    result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = 0;
-    result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = 0;
-    result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = 0;
-    result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = 1;
+    result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[0][1]; result.m[2]  = mat.m[0][3]; result.m[3]  = mat.m[0][3];
+    result.m[4]  = mat.m[1][0]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[1][3]; result.m[7]  = mat.m[1][3];
+    result.m[8]  = mat.m[2][0]; result.m[9]  = mat.m[2][1]; result.m[10] = mat.m[2][2]; result.m[11] = mat.m[2][3];
+    result.m[12] = 0;           result.m[13] = 0;           result.m[14] = 0;           result.m[15] = 1;
     // clang-format on
     return result;
 };
@@ -551,7 +572,7 @@ Matrix4 Engine::GetHeadMatrix()
     vr::TrackedDevicePose_t poses[vr::k_unMaxTrackedDeviceCount];
     vr::VRCompositor()->WaitGetPoses(poses, vr::k_unMaxTrackedDeviceCount, nullptr, 0);
     assert(poses[vr::k_unTrackedDeviceIndex_Hmd].bPoseIsValid);
-    return Hmd34ToMatrix4(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking).Inverse();
+    return Hmd34ToMatrix4(poses[vr::k_unTrackedDeviceIndex_Hmd].mDeviceToAbsoluteTracking);
 }
 
 Matrix4 Engine::GetEyeMatrix(vr::Hmd_Eye eye)
@@ -564,12 +585,42 @@ Matrix4 Engine::GetProjectionMatrix(vr::Hmd_Eye eye, float fNear, float fFar)
     return [](const vr::HmdMatrix44_t& mat) {
         Matrix4 result;
         // clang-format off
-        result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[1][0]; result.m[2]  = mat.m[2][0]; result.m[3]  = mat.m[3][0];
-        result.m[4]  = mat.m[0][1]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[2][1]; result.m[7]  = mat.m[3][1];
-        result.m[8]  = mat.m[0][2]; result.m[9]  = mat.m[1][2]; result.m[10] = mat.m[2][2]; result.m[11] = mat.m[3][2];
-        result.m[12] = mat.m[0][3]; result.m[13] = mat.m[1][3]; result.m[14] = mat.m[2][3]; result.m[15] = mat.m[3][3];
+        result.m[0]  = mat.m[0][0]; result.m[1]  = mat.m[0][1]; result.m[2]  = mat.m[0][2]; result.m[3]  = mat.m[0][3];
+        result.m[4]  = mat.m[1][0]; result.m[5]  = mat.m[1][1]; result.m[6]  = mat.m[1][2]; result.m[7]  = mat.m[1][3];
+        result.m[8]  = mat.m[2][0]; result.m[9]  = mat.m[2][1]; result.m[10] = mat.m[2][2]; result.m[11] = mat.m[2][3];
+        result.m[12] = mat.m[3][0]; result.m[13] = mat.m[3][1]; result.m[14] = mat.m[3][2]; result.m[15] = mat.m[3][3];
         // clang-format on
         return result;
-    }(HMD->GetProjectionMatrix(vr::Eye_Left, fNear, fFar))
-               .Transposed();
+    }(HMD->GetProjectionMatrix(vr::Eye_Left, fNear, fFar));
+}
+
+void Engine::ProcessPlayerMotion(const Matrix4& headMatrix)
+{
+    // 1. Get new player physical position from HMD
+    auto newPhysicalPos = headMatrix.Translation();
+    // 2. Set player velocity based on old and new physical positions
+    player->velocity = newPhysicalPos - player->physicalPos;
+    // 3. Set new player physical pos for the next frame
+    player->physicalPos = newPhysicalPos;
+    // 4. For each portal, call TryPortal on player
+    if (TryPortals())
+    {
+        // 5. If teleported, set new player offsets
+        player->virtualOffsets.x = round(player->pos.x / curScene->GetPhysicalSize()) * curScene->GetPhysicalSize();
+        player->virtualOffsets.z = round(player->pos.z / curScene->GetPhysicalSize()) * curScene->GetPhysicalSize();
+    }
+    // 6. Set actual player virtual position based on physical position & new offsets
+    player->pos = player->physicalPos + player->virtualOffsets;
+}
+
+bool Engine::TryPortals()
+{
+    for (auto& portal : vPortals)
+    {
+        if (player->TryPortal(*portal))
+        {
+            return true;
+        }
+    }
+    return false;
 }

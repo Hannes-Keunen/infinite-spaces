@@ -669,6 +669,8 @@ Vector3 InfiniteSpace::GetPhysicalPos(const Vector3& pos) const
     return result;
 }
 
+// Vector3 InfiniteSpace::GetPlayerOffset(const Vector3& playerPos) const {}
+
 void InfiniteSpace::CreateFloorplanVertices(const Player& player, std::vector<float>& vertices) const
 {
     for (const auto& node : nodes)

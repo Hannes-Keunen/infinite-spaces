@@ -45,7 +45,7 @@ public:
 
     const Player& GetPlayer() const { return *player; }
     float NearestPortalDist() const;
-    void OnPlayerEnterRoom(const Vector3& previousPosition);
+    void OnPlayerEnterRoom(const Vector3& previousPosition, const Vector3& currentPosition);
 
 private:
     void CreateGLWindow();
@@ -57,7 +57,10 @@ private:
     Matrix4 GetEyeMatrix(vr::Hmd_Eye eye);
     Matrix4 GetProjectionMatrix(vr::Hmd_Eye eye, float fNear, float fFar);
 
-private:
+    void ProcessPlayerMotion(const Matrix4& headMatrix);
+    bool TryPortals();
+
+public:
     Args args;
 
     GLFWwindow* window;

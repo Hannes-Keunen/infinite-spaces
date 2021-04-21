@@ -155,11 +155,11 @@ void Player::OnCollide(Object& other, const Vector3& push)
 
 bool Player::TryPortal(const Portal& portal)
 {
-    Vector3 prev = GH_PLAYER->pos;
+    Vector3 prev = pos;
     bool teleported = Physical::TryPortal(portal);
     if (teleported)
     {
-        GH_ENGINE->OnPlayerEnterRoom(prev);
+        GH_ENGINE->OnPlayerEnterRoom(prev, pos);
     }
     return teleported;
 }
